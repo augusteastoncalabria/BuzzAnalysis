@@ -20,7 +20,7 @@ import baseFunctions
 import broodFunctions
 import warnings
 import shapely
-import copy
+import data_cleaning
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -34,15 +34,30 @@ def parse_opt():
     parser.add_argument('--whole', '-w', action='store_true', help='Do not split frame into two when analyzing.')
     parser.add_argument('--bombus', '-z', action='store_true', help='Data is from rig, run alternative search for data files.')
     parser.add_argument('--outFile', '-o', type=str, default='Analysis.csv', help='Path to output file. Defaults to "Analysis.csv".')
-
+    #August added this
+    parser.add_argument('--real-fps', '-rfps', type=float or int, help='Enter the framerate you were using (with BumbleBox software using mp4 files, you have to test for the actual framerate!).')
+    parser.add_argument('--max-interpolation-seconds', '-mis', type=float or int, help='Maximum number of seconds to interpolate between frames.')
+    parser.add_argument('--save-interpolation-data', '-sid', type=bool, default=False, help='Choose whether to save the interpolated data for debugging purposes.')
+    #End of August's addition
     return parser.parse_args()
 
-def restructure_tracking_data(rawOneLR):
+def restructure_tracking_data(rawOneLR, opt, interpolated_path_name):
     """Take centroid data from aruco-tracking structured output, rearrange and interpolate missing data"""
     # Drop any duplicate rows
     rawOneLR = rawOneLR.drop_duplicates(subset=['ID', 'frame'])
-    xs = rawOneLR.pivot(index="frame", columns='ID', values=['centroidX', 'centroidY'])
-    return xs.interpolate(method='linear', limit=2, axis='index', limit_direction='both')
+    #August added this
+    max_seconds_gap = opt.get('max_interpolation_seconds')
+    actual_frames_per_second = opt.get('real_fps')
+    interpolated = data_cleaning.interpolate(rawOneLR, max_seconds_gap, actual_frames_per_second)
+    interpolated = data_cleaning.remove_jumps(interpolated)
+    if opt['save_interpolation_data'] == True:
+        interpolated.to_csv(interpolated_path_name, index=False)
+    #End of August's addition
+    xs = interpolated.pivot(index="frame", columns='ID', values=['centroidX', 'centroidY'])
+
+    #August commented this out
+    #return xs.interpolate(method='linear', limit=2, axis='index', limit_direction='both', limit_area='inside')
+    return xs
 
 def minDistance(A, B, P) : 
     # vector AB 
@@ -285,10 +300,15 @@ def main():
         for f in files:
             try:
                 if opt['bombus']:
+                    
                     if 'mjpeg' in f and os.path.exists(os.path.join(dir, f).replace(".mjpeg", opt['extension'])):
                                 v = os.path.join(dir, f)
                                 print('Analyzing: ' + v)
                                 workerID, Date, Time = f.split("_")
+                                #Following two lines added by August to deal with formatting issues in filenames
+                                #workerID, Date, Hours, Minutes, Seconds = f.split("_")[0:5]
+                                #Time = Hours + "-" + Minutes + "-" + Seconds
+
                                 Time = Time.replace(".mjpeg", "").replace("-", ":")
                                 trackingResults = pd.read_csv(v.replace(".mjpeg", opt['extension']))
                     else:
@@ -298,10 +318,16 @@ def main():
                         v = os.path.join(dir, f)
                         print('Analyzing: ' + f)
                         workerID, Date, Time = f.split("_")[0:3]
+
+                        #Following two lines added by August to deal with formatting issues in filenames
+                        #workerID, Date, Hours, Minutes, Seconds = f.split("_")[0:5]
+                        #Time = Hours + "-" + Minutes + "-" + Seconds
+                        
                         Time = Time.replace(opt['extension'], "").replace("-", ":")
                         trackingResults = pd.read_csv(v)
                     else:
                         continue
+                    
             except Exception as e:
                 print('Error reading file ' + f + ', skipping...')
                 continue
@@ -315,11 +341,20 @@ def main():
 
             fullAnalysis = pd.DataFrame()
             datasets = trackingResults.groupby('LR')
+
             for name, rawOneLR in datasets:
+                #August added this to allow us to save the interpolated data separately for debugging
+                data_path_name = os.path.join(dir, f)
+                data_path_name = os.path.splitext(data_path_name)[0]
+                interpolated_path_name = data_path_name + '_' + name + '_interpolated.csv'
+                #End of August's addition
+
                 analysis = pd.DataFrame(index=rawOneLR.ID.unique())
                 analysis['LR'] = name
                 analysis['ID'] = analysis.index
-                oneLR = restructure_tracking_data(rawOneLR)  # one video of one colony
+                #August edited this line to include the opt values and the interpolated path name
+                oneLR = restructure_tracking_data(rawOneLR, opt, interpolated_path_name)  # one video of one colony
+                
                 if opt['brood']:
                     oneLR = processBrood(f, oneLR, name, opt['broodExtension'], opt['brood'])
                     oneLR.to_csv('oneLR.csv')
