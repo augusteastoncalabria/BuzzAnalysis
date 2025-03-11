@@ -9,6 +9,7 @@ __version__ = '0.0.1'
 import pandas as pd
 import numpy as np
 from params import *
+import shapely
 
 def meanEggDistM(broodLR):
     """Mean distance to egg. Distance measured as distance to closest point in geometry."""
@@ -231,4 +232,3 @@ def PropInactiveTime(broodLR):
         out = pd.Series(index = row.index)
         out.index.name = None
         return out
-    
