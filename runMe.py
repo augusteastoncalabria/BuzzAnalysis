@@ -6,8 +6,8 @@ If the brood flag is used, will also run functions in broodFunctions.py
 """
 
 __appname__ = 'runMe.py'
-__author__ = 'Acacia Tang (ttang53@wisc.edu)'
-__version__ = '0.0.1'
+__author__ = 'Acacia Tang (ttang53@wisc.edu), editor August Easton-Calabria (eastoncalabr@wisc.edu)'
+__version__ = '0.0.2'
 
 # imports
 import pandas as pd
