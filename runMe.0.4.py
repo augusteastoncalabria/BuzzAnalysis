@@ -265,7 +265,6 @@ def process_file(file_path, opt, funcs):
             try:
                 analysis[test[0]] = test[1](oneLR)
             except Exception as e:
-                print(e)
                 print(test[0] + " cannot be run on " + v)
                 analysis[test[0]] = None
         fullAnalysis = pd.concat([fullAnalysis, analysis], axis=0)
