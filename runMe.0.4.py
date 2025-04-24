@@ -84,24 +84,25 @@ def restructure_tracking_data(rawOneLR, opt, interpolated_path_name):
     Returns:
         DataFrame: Pivoted DataFrame with 'centroidX' and 'centroidY' for each tag.
     """
-    # Remove duplicate rows based on 'ID' and 'frame'
-    rawOneLR = rawOneLR.drop_duplicates(subset=['ID', 'frame'])
+    # Remove duplicate tag readings in the same frame, keeping the one closest to the nearest available tag reading 
+    df, return_val = data_cleaning.return_duplicate_bees(rawOneLR)
+    df = data_cleaning.drop_duplicates_clean(df, return_val) 
     
     if opt['interpolate'] == True:
         if opt.get('real_fps') is None or opt.get('max_interpolation_seconds') is None:
             raise ValueError("Interpolation is enabled but --real-fps and --max-interpolation-seconds must be provided.")
+        if type(opt['remove_jumps']) == int:
+            df = data_cleaning.remove_jumps(df)
         max_seconds_gap = opt['max-interpolation-seconds']
         actual_frames_per_second = opt['real-fps']
         # Perform interpolation using data_cleaning.interpolate
-        interpolated = data_cleaning.interpolate(rawOneLR, max_seconds_gap, actual_frames_per_second)
-        if type(opt['remove_jumps']) == int:
-            interpolated = data_cleaning.remove_jumps(interpolated)
+        interpolated = data_cleaning.interpolate(df, max_seconds_gap, actual_frames_per_second)
         if opt['save-interpolation-data']:
             interpolated.to_csv(interpolated_path_name, index=False)
     else:
         if type(opt['remove_jumps']) == int:
-            rawOneLR = data_cleaning.remove_jumps(rawOneLR)
-        interpolated = rawOneLR
+            df = data_cleaning.remove_jumps(df)
+        interpolated = df
     
     # Pivot the data so that each tag's centroidX and centroidY appear as columns, keyed by 'frame'
     xs = interpolated.pivot(index="frame", columns='ID', values=['centroidX', 'centroidY'])
